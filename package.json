@@ -1,0 +1,17 @@
+{
+  "name": "doom-in-slack-poc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "verify": "node scripts/verify.ts",
+    "setup": "node scripts/setup.ts",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "playwright": "1.56.1",
+    "terser": "5.44.1",
+    "vite": "8.3.8"
+  },
+  "packageManager": "pnpm@12.5.1"
+}
