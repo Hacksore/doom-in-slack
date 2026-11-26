@@ -250,7 +250,16 @@ export async function compileEngine() {
     "-o",
     resolve(".build/engine.js"),
   ]);
-  return read(".build/engine.js", "utf8");
+  const [version, target] = await Promise.all([
+    execa(emcc, ["-dumpversion"]),
+    execa(emcc, ["-dumpmachine"]),
+  ]);
+
+  return {
+    runtime: read(".build/engine.js", "utf8"),
+    sdkVersion: version.stdout,
+    wasmTarget: target.stdout,
+  };
 }
 
 export function encodePayload(bytes: Buffer) {

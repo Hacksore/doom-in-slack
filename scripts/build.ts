@@ -36,7 +36,7 @@ const { conservative, game, trimStats } = buildWad(original);
 
 write(".build/doom1.wad", game);
 
-const runtime = await oraPromise(compileEngine(), {
+const { runtime, sdkVersion, wasmTarget } = await oraPromise(compileEngine(), {
   text: "Compiling the game engine to WebAssembly…",
   successText: pc.dim("Game engine compiled"),
   failText: pc.red("Engine compilation failed"),
@@ -99,6 +99,9 @@ const seconds = (performance.now() - startedAt) / 1000;
 const megabytes = sizes.finalHtml / 1_000_000;
 
 console.log("\n" + pc.green(pc.bold("✓ Build complete")));
+console.log(
+  `  ${pc.dim("Toolchain")}    Emscripten ${sdkVersion} · ${wasmTarget} · Node ${process.version}`,
+);
 console.log(`  ${pc.dim("Build time")}   ${seconds.toFixed(1)}s`);
 console.log(`  ${pc.dim("Build size")}   ${megabytes.toFixed(2)} MB`);
 console.log(`  ${pc.dim("Output file")}  ${pc.cyan(outputFile)}`);
