@@ -8,8 +8,8 @@
     "dev": "vite",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt scripts src vite.config.ts tsconfig.json",
-    "format:check": "oxfmt --check scripts src vite.config.ts tsconfig.json",
+    "format": "oxfmt assets scripts src vite.config.ts tsconfig.json",
+    "format:check": "oxfmt --check assets scripts src vite.config.ts tsconfig.json",
     "typecheck": "tsc"
   },
   "devDependencies": {

@@ -10,5 +10,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["scripts/**/*.ts", "vite.config.ts"]
+  "include": ["assets/**/*.ts", "scripts/**/*.ts", "vite.config.ts"]
 }
