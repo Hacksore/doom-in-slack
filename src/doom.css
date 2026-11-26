@@ -59,6 +59,25 @@ footer {
   margin: 12px 0;
   color: #bbb;
 }
-footer a {
-  color: #ffad73;
+.profile-qr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 10px 14px;
+  width: fit-content;
+  max-width: calc(100% - 24px);
+  margin: 16px auto;
+}
+.profile-qr figcaption {
+  color: #999;
+  font-size: 0.8125rem;
+  text-align: left;
+}
+.profile-qr strong {
+  display: block;
+  margin-top: 3px;
+  color: #bbb;
+  font-size: 1rem;
+  font-weight: 600;
 }
