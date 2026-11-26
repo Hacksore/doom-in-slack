@@ -169,26 +169,48 @@ export async function compileEngine() {
       resolve(".build/doomgeneric/doomgeneric", x.replace(/\.o$/, ".c")),
     );
 
-  // This one-map POC always restarts E1M1 after intermission or New Game.
-  let gameSource = read(".build/doomgeneric/doomgeneric/g_game.c", "utf8");
+  const sourcePatches = [
+    {
+      file: "g_game.c",
+      // Restart E1M1 after intermission or New Game.
+      replacements: [
+        ["gamemap = wminfo.next+1;", "gamemap = 1; gameepisode = 1;"],
+        ["gamemap = map;", "gamemap = 1; gameepisode = 1;"],
+      ],
+    },
+    {
+      file: "r_segs.c",
+      // Make the existing conversion to abs(int) explicit after angle subtraction.
+      replacements: [
+        [
+          "abs(rw_normalangle-rw_angle1)",
+          "abs((int)(rw_normalangle-rw_angle1))",
+        ],
+      ],
+    },
+  ];
 
-  for (const [from, to] of [
-    ["gamemap = wminfo.next+1;", "gamemap = 1; gameepisode = 1;"],
-    ["gamemap = map;", "gamemap = 1; gameepisode = 1;"],
-  ]) {
-    if (!gameSource.includes(from))
-      throw Error("Upstream map patch no longer applies");
-    gameSource = gameSource.replace(from, to);
+  for (const { file, replacements } of sourcePatches) {
+    const sourcePath = resolve(".build/doomgeneric/doomgeneric", file);
+    const sourceIndex = sources.indexOf(sourcePath);
+    if (sourceIndex === -1) {
+      throw new Error(`${file} is missing from the DoomGeneric sources`);
+    }
+
+    let source = read(sourcePath, "utf8");
+    for (const [from, to] of replacements) {
+      if (!source.includes(from)) {
+        throw new Error(
+          `DoomGeneric patch no longer applies to ${file}: ${from}`,
+        );
+      }
+      source = source.replace(from, to);
+    }
+
+    const patchedPath = resolve(".build", file);
+    write(patchedPath, source);
+    sources[sourceIndex] = patchedPath;
   }
-
-  write(".build/g_game.c", gameSource);
-  const gameSourceIndex = sources.indexOf(
-    resolve(".build/doomgeneric/doomgeneric/g_game.c"),
-  );
-  if (gameSourceIndex === -1)
-    throw new Error("g_game.c is missing from the DoomGeneric sources");
-
-  sources[gameSourceIndex] = resolve(".build/g_game.c");
 
   const emcc =
     process.env.EMCC || resolve(".build/emsdk/upstream/emscripten/emcc");
