@@ -1,16 +1,196 @@
-<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none';script-src 'unsafe-inline' 'wasm-unsafe-eval';style-src 'unsafe-inline';connect-src 'none';worker-src 'none';base-uri 'none';form-action 'none'"><title>DOOM iframe POC</title><link rel="stylesheet" href="/src/doom.css"><h1>DOOM in Slack</h1><p id="status" role="status">Loading DOOM automatically… If this message remains, inline scripts may be blocked.</p><canvas id="screen" width="320" height="200" tabindex="0" aria-label="DOOM game; arrow keys move, Control fires, Space opens doors"></canvas><p>Arrows: move/turn · Ctrl or F: fire · Space: use · Shift: run · Alt: strafe · 1–7: weapons · Esc: menu</p><p>First level only · silent · click game to focus · no saves survive reload</p><footer>Made by <a href="https://x.com/Hacksore">hacksore</a> and Codex (mainly Codex) · <a href="https://github.com/Hacksore/doom-in-slack">GitHub repository</a></footer><details><summary>Licenses and credits</summary><pre>__NOTICES__</pre></details><script>
-/*ENGINE*/
-const status=document.getElementById('status'),canvas=document.getElementById('screen');
-const wasmPayload='__WASM__',wadPayload='__WAD__';
-async function unpack(s){const bytes=Uint8Array.from(atob(s),c=>c.charCodeAt(0));return new Uint8Array(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());}
-const keys={ArrowLeft:172,ArrowRight:174,ArrowUp:173,ArrowDown:175,ControlLeft:163,ControlRight:163,KeyF:163,Space:162,ShiftLeft:182,ShiftRight:182,AltLeft:184,AltRight:184,Escape:27,Enter:13,Tab:9,Backspace:127,Minus:45,Equal:61};
-let game,ctx,frame,frames=0;const held=new Map();
-function keycode(e){return keys[e.code]??(/^Digit[1-7]$/.test(e.code)?e.code.charCodeAt(5):undefined);}
-canvas.addEventListener('click',()=>canvas.focus());
-canvas.addEventListener('keydown',e=>{const k=keycode(e);if(k!==undefined){e.preventDefault();if(game&&!held.has(e.code)){held.set(e.code,k);game._key_event(1,k);}}});
-canvas.addEventListener('keyup',e=>{const k=held.get(e.code);if(k!==undefined){e.preventDefault();game?._key_event(0,k);held.delete(e.code);}});
-function release(){for(const k of held.values())game?._key_event(0,k);held.clear();}canvas.addEventListener('blur',release);document.addEventListener('visibilitychange',()=>{if(document.hidden)release();});
-function fail(e){status.textContent='Cannot start: '+(e?.message||e)+'. WebAssembly needs CSP wasm-unsafe-eval; inline scripts must also be permitted.';document.body.dataset.state='error';console.error(e);}
-async function start(){try{if(!globalThis.WebAssembly)throw Error('WebAssembly unavailable');if(!globalThis.DecompressionStream)throw Error('Native gzip decompression unavailable');ctx=canvas.getContext('2d');if(!ctx)throw Error('Canvas 2D unavailable');const probeContext=document.createElement('canvas').getContext('2d');probeContext.fillStyle='#54f';probeContext.fillRect(0,0,1,1);if(probeContext.getImageData(0,0,1,1).data[2]!==255)throw Error('Canvas readback failed');await WebAssembly.compile(Uint8Array.of(0,97,115,109,1,0,0,0));const probe=await unpack('H4sIAAAAAAACA8vPBgBH3dx5AgAAAA==');if(new TextDecoder().decode(probe)!=='ok')throw Error('Gzip roundtrip failed');status.textContent='Unpacking embedded engine and first-level assets…';const [wasm,wad]=await Promise.all([unpack(wasmPayload),unpack(wadPayload)]);frame=ctx.createImageData(320,200);game=await createDoom({wasmBinary:wasm,noInitialRun:true,print:console.log,printErr:console.error,onAbort:fail,present:(heap,ptr)=>{for(let i=0;i<320*200;i++){const a=ptr+i*4,b=i*4;frame.data[b]=heap[a+2];frame.data[b+1]=heap[a+1];frame.data[b+2]=heap[a];frame.data[b+3]=255;}ctx.putImageData(frame,0,0);canvas.dataset.frames=String(++frames);if(frames===10){status.textContent='Playing Freedoom E1M1 · click game to focus keyboard';document.body.dataset.state='playing';}}});game.FS.writeFile('/doom1.wad',wad);game.callMain(['-iwad','/doom1.wad','-warp','1','1','-skill','3','-nosound','-nomusic','-novert','-config','/tmp/doom.cfg']);canvas.focus();}catch(e){fail(e);}}
-void start();
-</script></html>
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none';script-src 'unsafe-inline' 'wasm-unsafe-eval';style-src 'unsafe-inline';connect-src 'none';worker-src 'none';base-uri 'none';form-action 'none'"
+    />
+    <title>DOOM iframe POC</title>
+    <link rel="stylesheet" href="/src/doom.css" />
+  </head>
+  <body>
+    <h1>DOOM in Slack</h1>
+    <p id="status" role="status">
+      Loading DOOM automatically… If this message remains, inline scripts may be
+      blocked.
+    </p>
+    <canvas
+      id="screen"
+      width="320"
+      height="200"
+      tabindex="0"
+      aria-label="DOOM game; arrow keys move, Control fires, Space opens doors"
+    ></canvas>
+    <p>
+      Arrows: move/turn · Ctrl or F: fire · Space: use · Shift: run · Alt:
+      strafe · 1–7: weapons · Esc: menu
+    </p>
+    <p>
+      First level only · silent · click game to focus · no saves survive reload
+    </p>
+    <footer>
+      Made by <a href="https://x.com/Hacksore">hacksore</a> and Codex (mainly
+      Codex) ·
+      <a href="https://github.com/Hacksore/doom-in-slack">GitHub repository</a>
+    </footer>
+    <details>
+      <summary>Licenses and credits</summary>
+      <pre>__NOTICES__</pre>
+    </details>
+    <script>
+      /*ENGINE*/
+      const status = document.getElementById('status'),
+        canvas = document.getElementById('screen');
+      const wasmPayload = '__WASM__',
+        wadPayload = '__WAD__';
+      async function unpack(s) {
+        const bytes = Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+        return new Uint8Array(
+          await new Response(
+            new Blob([bytes])
+              .stream()
+              .pipeThrough(new DecompressionStream('gzip')),
+          ).arrayBuffer(),
+        );
+      }
+      const keys = {
+        ArrowLeft: 172,
+        ArrowRight: 174,
+        ArrowUp: 173,
+        ArrowDown: 175,
+        ControlLeft: 163,
+        ControlRight: 163,
+        KeyF: 163,
+        Space: 162,
+        ShiftLeft: 182,
+        ShiftRight: 182,
+        AltLeft: 184,
+        AltRight: 184,
+        Escape: 27,
+        Enter: 13,
+        Tab: 9,
+        Backspace: 127,
+        Minus: 45,
+        Equal: 61,
+      };
+      let game,
+        ctx,
+        frame,
+        frames = 0;
+      const held = new Map();
+      function keycode(e) {
+        return (
+          keys[e.code] ??
+          (/^Digit[1-7]$/.test(e.code) ? e.code.charCodeAt(5) : undefined)
+        );
+      }
+      canvas.addEventListener('click', () => canvas.focus());
+      canvas.addEventListener('keydown', (e) => {
+        const k = keycode(e);
+        if (k !== undefined) {
+          e.preventDefault();
+          if (game && !held.has(e.code)) {
+            held.set(e.code, k);
+            game._key_event(1, k);
+          }
+        }
+      });
+      canvas.addEventListener('keyup', (e) => {
+        const k = held.get(e.code);
+        if (k !== undefined) {
+          e.preventDefault();
+          game?._key_event(0, k);
+          held.delete(e.code);
+        }
+      });
+      function release() {
+        for (const k of held.values()) game?._key_event(0, k);
+        held.clear();
+      }
+      canvas.addEventListener('blur', release);
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) release();
+      });
+      function fail(e) {
+        status.textContent =
+          'Cannot start: ' +
+          (e?.message || e) +
+          '. WebAssembly needs CSP wasm-unsafe-eval; inline scripts must also be permitted.';
+        document.body.dataset.state = 'error';
+        console.error(e);
+      }
+      async function start() {
+        try {
+          if (!globalThis.WebAssembly) throw Error('WebAssembly unavailable');
+          if (!globalThis.DecompressionStream)
+            throw Error('Native gzip decompression unavailable');
+          ctx = canvas.getContext('2d');
+          if (!ctx) throw Error('Canvas 2D unavailable');
+          const probeContext = document
+            .createElement('canvas')
+            .getContext('2d');
+          probeContext.fillStyle = '#54f';
+          probeContext.fillRect(0, 0, 1, 1);
+          if (probeContext.getImageData(0, 0, 1, 1).data[2] !== 255)
+            throw Error('Canvas readback failed');
+          await WebAssembly.compile(Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0));
+          const probe = await unpack('H4sIAAAAAAACA8vPBgBH3dx5AgAAAA==');
+          if (new TextDecoder().decode(probe) !== 'ok')
+            throw Error('Gzip roundtrip failed');
+          status.textContent =
+            'Unpacking embedded engine and first-level assets…';
+          const [wasm, wad] = await Promise.all([
+            unpack(wasmPayload),
+            unpack(wadPayload),
+          ]);
+          frame = ctx.createImageData(320, 200);
+          game = await createDoom({
+            wasmBinary: wasm,
+            noInitialRun: true,
+            print: console.log,
+            printErr: console.error,
+            onAbort: fail,
+            present: (heap, ptr) => {
+              for (let i = 0; i < 320 * 200; i++) {
+                const a = ptr + i * 4,
+                  b = i * 4;
+                frame.data[b] = heap[a + 2];
+                frame.data[b + 1] = heap[a + 1];
+                frame.data[b + 2] = heap[a];
+                frame.data[b + 3] = 255;
+              }
+              ctx.putImageData(frame, 0, 0);
+              canvas.dataset.frames = String(++frames);
+              if (frames === 10) {
+                status.textContent =
+                  'Playing Freedoom E1M1 · click game to focus keyboard';
+                document.body.dataset.state = 'playing';
+              }
+            },
+          });
+          game.FS.writeFile('/doom1.wad', wad);
+          game.callMain([
+            '-iwad',
+            '/doom1.wad',
+            '-warp',
+            '1',
+            '1',
+            '-skill',
+            '3',
+            '-nosound',
+            '-nomusic',
+            '-novert',
+            '-config',
+            '/tmp/doom.cfg',
+          ]);
+          canvas.focus();
+        } catch (e) {
+          fail(e);
+        }
+      }
+      void start();
+    </script>
+  </body>
+</html>
