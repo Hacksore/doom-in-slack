@@ -8,8 +8,9 @@
     "dev": "vite",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
-    "format": "oxfmt scripts src vite.config.ts",
-    "format:check": "oxfmt --check scripts src vite.config.ts"
+    "format": "oxfmt scripts src vite.config.ts tsconfig.json",
+    "format:check": "oxfmt --check scripts src vite.config.ts tsconfig.json",
+    "typecheck": "tsc"
   },
   "devDependencies": {
     "@types/node": "^24.19.4",
@@ -17,6 +18,7 @@
     "oxfmt": "0.80.0",
     "oxlint": "1.95.0",
     "terser": "5.44.1",
+    "typescript": "7.0.2",
     "vite": "8.3.8"
   },
   "packageManager": "pnpm@12.5.1"

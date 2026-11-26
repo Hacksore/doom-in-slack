@@ -23,7 +23,7 @@ export async function prepareSources() {
       "https://github.com/ozkl/doomgeneric.git",
       ".build/doomgeneric",
     ]);
-    await run("git", ["checkout", doomRev], resolve(".build/doomgeneric"));
+    await run("git", ["checkout", doomRev], { cwd: ".build/doomgeneric" });
   }
 
   let actualRevision: string;

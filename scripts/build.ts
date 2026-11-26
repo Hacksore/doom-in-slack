@@ -76,6 +76,7 @@ await run("tar", [
   "package.json",
   "pnpm-lock.yaml",
   "vite.config.ts",
+  "tsconfig.json",
   "README.md",
   ".gitignore",
   ".oxlintrc.json",
