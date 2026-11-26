@@ -11,7 +11,7 @@ import { gzipSync } from "node:zlib";
 import { execa } from "execa";
 import { minify } from "terser";
 
-import { trimVisuals, type Lump } from "./trim-wad.ts";
+import { readWadName, trimVisuals, type Lump } from "./trim-wad.ts";
 
 export const run = execa({ stdio: "inherit" });
 
@@ -114,9 +114,7 @@ function readFirstMapLumps(original: Buffer) {
     const entry = directoryOffset + i * 16;
     const start = original.readInt32LE(entry);
     const size = original.readInt32LE(entry + 4);
-    const name = original
-      .toString("ascii", entry + 8, entry + 16)
-      .replace(/\0/g, "");
+    const name = readWadName(original, entry + 8);
     if (/^E\dM\d$/.test(name)) map = name;
     else if (
       ![
