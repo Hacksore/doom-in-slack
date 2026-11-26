@@ -1,36 +1,36 @@
-import { readFileSync as read } from 'node:fs';
+import { readFileSync as read } from "node:fs";
 export type Lump = { name: string; data: Buffer };
 // Conservative first-map dependency closure: preserve all animation and switch sets,
 // complete sprite families for map actors, weapons, drops and engine-spawned effects.
 export function trimVisuals(lumps: Lump[]) {
   const get = (n: string) => {
     const l = lumps.find((l) => l.name === n);
-    if (!l) throw Error('Missing ' + n);
+    if (!l) throw Error("Missing " + n);
     return l.data;
   };
   const name = (b: Buffer, p: number) =>
-    b.toString('ascii', p, p + 8).replace(/\0/g, '');
-  const textures = new Set<string>(['SKY1', 'SKY2', 'SKY3', 'SKY4']);
-  const flats = new Set<string>(['F_SKY1', 'FLOOR4_8']);
-  const sides = get('SIDEDEFS');
+    b.toString("ascii", p, p + 8).replace(/\0/g, "");
+  const textures = new Set<string>(["SKY1", "SKY2", "SKY3", "SKY4"]);
+  const flats = new Set<string>(["F_SKY1", "FLOOR4_8"]);
+  const sides = get("SIDEDEFS");
   for (let p = 0; p < sides.length; p += 30)
     for (const o of [4, 12, 20]) textures.add(name(sides, p + o));
-  const sectors = get('SECTORS');
+  const sectors = get("SECTORS");
   for (let p = 0; p < sectors.length; p += 26)
     for (const o of [4, 12]) flats.add(name(sectors, p + o));
   const switches = read(
-    '.build/doomgeneric/doomgeneric/p_switch.c',
-    'utf8',
+    ".build/doomgeneric/doomgeneric/p_switch.c",
+    "utf8",
   ).matchAll(/\{"(SW[12][^"]+)"/g);
   for (const m of switches) textures.add(m[1]);
   // Both names in each pair; the regex above catches only the first field.
   for (const m of read(
-    '.build/doomgeneric/doomgeneric/p_switch.c',
-    'utf8',
+    ".build/doomgeneric/doomgeneric/p_switch.c",
+    "utf8",
   ).matchAll(/"(SW[12][^"]+)"/g))
     textures.add(m[1]);
   const anims = [
-    ...read('.build/doomgeneric/doomgeneric/p_spec.c', 'utf8').matchAll(
+    ...read(".build/doomgeneric/doomgeneric/p_spec.c", "utf8").matchAll(
       /\{(true|false),\s*"([^"]+)",\s*"([^"]+)"/g,
     ),
   ];
@@ -46,7 +46,7 @@ export function trimVisuals(lumps: Lump[]) {
   }
   const expand = (list: string[], set: Set<string>, isTexture: boolean) => {
     for (const a of anims)
-      if ((a[1] === 'true') === isTexture) {
+      if ((a[1] === "true") === isTexture) {
         const first = list.indexOf(a[3]),
           last = list.indexOf(a[2]);
         if (first >= 0 && last >= first)
@@ -64,7 +64,7 @@ export function trimVisuals(lumps: Lump[]) {
   for (const [, b] of kept)
     for (let i = 0; i < b.readInt16LE(20); i++)
       usedPatches.add(b.readUInt16LE(22 + i * 10 + 4));
-  const pnames = get('PNAMES');
+  const pnames = get("PNAMES");
   const patchNames = new Set(
     [...usedPatches].map((i) => name(pnames, 4 + i * 8)),
   );
@@ -76,18 +76,18 @@ export function trimVisuals(lumps: Lump[]) {
     off += b.length;
   });
   const texture = Buffer.concat([directory, ...kept.map(([, b]) => b)]);
-  const things = get('THINGS'),
+  const things = get("THINGS"),
     types = new Set<number>();
   for (let p = 0; p < things.length; p += 10)
     types.add(things.readUInt16LE(p + 6));
-  const info = read('.build/doomgeneric/doomgeneric/info.c', 'utf8');
+  const info = read(".build/doomgeneric/doomgeneric/info.c", "utf8");
   const roots = new Set<string>();
   for (const m of info.matchAll(/\{\s*\/\/ (MT_\w+)\s+([\s\S]*?)\n\s*\}/g)) {
     const number = Number(m[2].match(/(-?\d+),\s*\/\/ doomednum/)?.[1]);
     if (
       number === -1 ||
       types.has(number) ||
-      ['MT_CLIP', 'MT_SHOTGUN', 'MT_CHAINGUN'].includes(m[1])
+      ["MT_CLIP", "MT_SHOTGUN", "MT_CHAINGUN"].includes(m[1])
     )
       for (const s of m[2].matchAll(/\bS_\w+/g)) roots.add(s[0]);
   }
@@ -96,10 +96,10 @@ export function trimVisuals(lumps: Lump[]) {
     /\{SPR_(\w+),[^\n]+?\},(S_\w+),[^\n]+?\/\/ (S_\w+)/g,
   ))
     states.set(m[3], { sprite: m[1], next: m[2] });
-  if (states.size < 900) throw Error('State parser failed');
+  if (states.size < 900) throw Error("State parser failed");
   // All first-person weapon animations (including weapons acquired through cheat codes).
   const weaponSprites = info
-    .slice(info.indexOf('char *sprnames'), info.indexOf('NULL'))
+    .slice(info.indexOf("char *sprnames"), info.indexOf("NULL"))
     .match(/"\w+"/g)!
     .slice(0, 16)
     .map((s) => s.slice(1, -1));
@@ -115,26 +115,26 @@ export function trimVisuals(lumps: Lump[]) {
     }
   };
   for (const s of roots) visit(s);
-  let section = '';
+  let section = "";
   const result: Lump[] = [];
   for (const l of lumps) {
     if (/^[SPF]_START$/.test(l.name)) section = l.name[0];
     let keep = true;
-    if (section === 'S' && !l.name.startsWith('S_'))
+    if (section === "S" && !l.name.startsWith("S_"))
       keep = sprites.has(l.name.slice(0, 4));
-    if (section === 'P' && !/^P\d?_/.test(l.name))
+    if (section === "P" && !/^P\d?_/.test(l.name))
       keep = patchNames.has(l.name);
-    if (section === 'F' && !/^F\d?_/.test(l.name)) keep = flats.has(l.name);
-    if (l.name === 'TEXTURE1') {
+    if (section === "F" && !/^F\d?_/.test(l.name)) keep = flats.has(l.name);
+    if (l.name === "TEXTURE1") {
       result.push({ name: l.name, data: texture });
       continue;
     }
-    if (l.name === 'TEXTURE2') continue;
+    if (l.name === "TEXTURE2") continue;
     // Preserve menu/help/title and intermission assets; no finale is reachable.
     if (/^(VICTORY2|ENDPIC|BOSSBACK|PFUB[12]|END[0-6])$/.test(l.name))
       keep = false;
     if (keep) result.push(l);
-    if (/^[SPF]_END$/.test(l.name)) section = '';
+    if (/^[SPF]_END$/.test(l.name)) section = "";
   }
   return {
     lumps: result,

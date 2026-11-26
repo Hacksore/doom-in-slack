@@ -41,17 +41,17 @@
     </details>
     <script>
       /*ENGINE*/
-      const status = document.getElementById('status'),
-        canvas = document.getElementById('screen');
-      const wasmPayload = '__WASM__',
-        wadPayload = '__WAD__';
+      const status = document.getElementById("status"),
+        canvas = document.getElementById("screen");
+      const wasmPayload = "__WASM__",
+        wadPayload = "__WAD__";
       async function unpack(s) {
         const bytes = Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
         return new Uint8Array(
           await new Response(
             new Blob([bytes])
               .stream()
-              .pipeThrough(new DecompressionStream('gzip')),
+              .pipeThrough(new DecompressionStream("gzip")),
           ).arrayBuffer(),
         );
       }
@@ -86,8 +86,8 @@
           (/^Digit[1-7]$/.test(e.code) ? e.code.charCodeAt(5) : undefined)
         );
       }
-      canvas.addEventListener('click', () => canvas.focus());
-      canvas.addEventListener('keydown', (e) => {
+      canvas.addEventListener("click", () => canvas.focus());
+      canvas.addEventListener("keydown", (e) => {
         const k = keycode(e);
         if (k !== undefined) {
           e.preventDefault();
@@ -97,7 +97,7 @@
           }
         }
       });
-      canvas.addEventListener('keyup', (e) => {
+      canvas.addEventListener("keyup", (e) => {
         const k = held.get(e.code);
         if (k !== undefined) {
           e.preventDefault();
@@ -109,38 +109,38 @@
         for (const k of held.values()) game?._key_event(0, k);
         held.clear();
       }
-      canvas.addEventListener('blur', release);
-      document.addEventListener('visibilitychange', () => {
+      canvas.addEventListener("blur", release);
+      document.addEventListener("visibilitychange", () => {
         if (document.hidden) release();
       });
       function fail(e) {
         status.textContent =
-          'Cannot start: ' +
+          "Cannot start: " +
           (e?.message || e) +
-          '. WebAssembly needs CSP wasm-unsafe-eval; inline scripts must also be permitted.';
-        document.body.dataset.state = 'error';
+          ". WebAssembly needs CSP wasm-unsafe-eval; inline scripts must also be permitted.";
+        document.body.dataset.state = "error";
         console.error(e);
       }
       async function start() {
         try {
-          if (!globalThis.WebAssembly) throw Error('WebAssembly unavailable');
+          if (!globalThis.WebAssembly) throw Error("WebAssembly unavailable");
           if (!globalThis.DecompressionStream)
-            throw Error('Native gzip decompression unavailable');
-          ctx = canvas.getContext('2d');
-          if (!ctx) throw Error('Canvas 2D unavailable');
+            throw Error("Native gzip decompression unavailable");
+          ctx = canvas.getContext("2d");
+          if (!ctx) throw Error("Canvas 2D unavailable");
           const probeContext = document
-            .createElement('canvas')
-            .getContext('2d');
-          probeContext.fillStyle = '#54f';
+            .createElement("canvas")
+            .getContext("2d");
+          probeContext.fillStyle = "#54f";
           probeContext.fillRect(0, 0, 1, 1);
           if (probeContext.getImageData(0, 0, 1, 1).data[2] !== 255)
-            throw Error('Canvas readback failed');
+            throw Error("Canvas readback failed");
           await WebAssembly.compile(Uint8Array.of(0, 97, 115, 109, 1, 0, 0, 0));
-          const probe = await unpack('H4sIAAAAAAACA8vPBgBH3dx5AgAAAA==');
-          if (new TextDecoder().decode(probe) !== 'ok')
-            throw Error('Gzip roundtrip failed');
+          const probe = await unpack("H4sIAAAAAAACA8vPBgBH3dx5AgAAAA==");
+          if (new TextDecoder().decode(probe) !== "ok")
+            throw Error("Gzip roundtrip failed");
           status.textContent =
-            'Unpacking embedded engine and first-level assets…';
+            "Unpacking embedded engine and first-level assets…";
           const [wasm, wad] = await Promise.all([
             unpack(wasmPayload),
             unpack(wadPayload),
@@ -165,25 +165,25 @@
               canvas.dataset.frames = String(++frames);
               if (frames === 10) {
                 status.textContent =
-                  'Playing Freedoom E1M1 · click game to focus keyboard';
-                document.body.dataset.state = 'playing';
+                  "Playing Freedoom E1M1 · click game to focus keyboard";
+                document.body.dataset.state = "playing";
               }
             },
           });
-          game.FS.writeFile('/doom1.wad', wad);
+          game.FS.writeFile("/doom1.wad", wad);
           game.callMain([
-            '-iwad',
-            '/doom1.wad',
-            '-warp',
-            '1',
-            '1',
-            '-skill',
-            '3',
-            '-nosound',
-            '-nomusic',
-            '-novert',
-            '-config',
-            '/tmp/doom.cfg',
+            "-iwad",
+            "/doom1.wad",
+            "-warp",
+            "1",
+            "1",
+            "-skill",
+            "3",
+            "-nosound",
+            "-nomusic",
+            "-novert",
+            "-config",
+            "/tmp/doom.cfg",
           ]);
           canvas.focus();
         } catch (e) {
