@@ -28,7 +28,8 @@
       strafe · 1–7: weapons · Esc: menu
     </p>
     <p>
-      First level only · silent · click game to focus · no saves survive reload
+      First level only · click game for sound and keyboard · no saves survive
+      reload
     </p>
     <footer>
       Made by <a href="https://x.com/Hacksore">hacksore</a> and Codex (mainly
@@ -165,7 +166,7 @@
               canvas.dataset.frames = String(++frames);
               if (frames === 10) {
                 status.textContent =
-                  "Playing Freedoom E1M1 · click game to focus keyboard";
+                  "Playing Freedoom E1M1 · click game for sound and keyboard";
                 document.body.dataset.state = "playing";
               }
             },
@@ -179,7 +180,6 @@
             "1",
             "-skill",
             "3",
-            "-nosound",
             "-nomusic",
             "-novert",
             "-config",

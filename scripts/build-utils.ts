@@ -83,6 +83,10 @@ export async function prepareSources() {
     read("licenses/DOOM.txt", "utf8"),
     read("licenses/Freedoom.txt", "utf8"),
     read("licenses/Freedoom-CREDITS.txt", "utf8"),
+    "SDL2",
+    read("licenses/SDL2.txt", "utf8"),
+    "SDL2_mixer",
+    read("licenses/SDL2_mixer.txt", "utf8"),
   ].join("\n\n");
 
   return { original: read(".build/freedoom-0.13.0/freedoom1.wad"), notices };
@@ -100,7 +104,7 @@ export function buildWad(original: Buffer) {
   };
 }
 
-// Keep the first map and all visual assets. Drop audio, demos, and other maps.
+// Keep the first map and all visual assets. Keep digital sound effects and drop demos and other maps.
 function readFirstMapLumps(original: Buffer) {
   const lumps: Lump[] = [];
   let map = "";
@@ -130,7 +134,7 @@ function readFirstMapLumps(original: Buffer) {
     )
       map = "";
 
-    if ((map && map !== "E1M1") || /^(DS|DP|DEMO)/.test(name)) continue;
+    if ((map && map !== "E1M1") || /^(DP|DEMO)/.test(name)) continue;
 
     lumps.push({ name, data: original.subarray(start, start + size) });
   }
@@ -216,6 +220,9 @@ export async function compileEngine() {
     process.env.EMCC || resolve(".build/emsdk/upstream/emscripten/emcc");
   await run(emcc, [
     ...sources,
+    resolve(".build/doomgeneric/doomgeneric/i_sdlsound.c"),
+    resolve(".build/doomgeneric/doomgeneric/i_sdlmusic.c"),
+    resolve(".build/doomgeneric/doomgeneric/mus2mid.c"),
     resolve("src/platform.c"),
     "-I" + resolve(".build/doomgeneric/doomgeneric"),
     "-Oz",
@@ -223,6 +230,9 @@ export async function compileEngine() {
     "-DNORMALUNIX",
     "-DLINUX",
     "-D_DEFAULT_SOURCE",
+    "-DFEATURE_SOUND",
+    "-sUSE_SDL_MIXER=2",
+    "-sSDL2_MIXER_FORMATS=[]",
     "-DDOOMGENERIC_RESX=320",
     "-DDOOMGENERIC_RESY=200",
     "-sENVIRONMENT=web",
