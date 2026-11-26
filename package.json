@@ -15,8 +15,10 @@
   "devDependencies": {
     "@types/node": "^24.19.4",
     "execa": "10.2.1",
+    "ora": "10.0.0",
     "oxfmt": "0.80.0",
     "oxlint": "1.95.0",
+    "picocolors": "1.1.1",
     "terser": "5.44.1",
     "typescript": "7.0.2",
     "vite": "8.3.8"
