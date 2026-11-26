@@ -1,243 +1,67 @@
+import { createHash } from 'node:crypto';
 import {
+  mkdirSync,
   readFileSync as read,
   writeFileSync as write,
-  mkdirSync,
-  existsSync,
-  copyFileSync,
 } from 'node:fs';
 import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
-import { minify } from 'terser';
-import { trimVisuals, type Lump } from './trim-wad.ts';
-const root = resolve(import.meta.dirname, '..');
-process.chdir(root);
-function run(cmd: string, args: string[], cwd = root) {
-  const result = spawnSync(cmd, args, { cwd, stdio: 'inherit' });
-  if (result.error) throw result.error;
-  if (result.status !== 0) {
-    throw new Error(`${cmd} failed (${result.signal ?? result.status})`);
-  }
-}
+
+import {
+  buildWad,
+  compileEngine,
+  encodePayload,
+  prepareSources,
+  renderGameHtml,
+  run,
+} from './build-utils.ts';
+
+process.chdir(resolve(import.meta.dirname, '..'));
+
 mkdirSync('.build', { recursive: true });
 mkdirSync('licenses', { recursive: true });
 mkdirSync('dist', { recursive: true });
-const doomRev = 'e257a09527062bfb986b6e5e0780839b6cbd5b71';
-if (!existsSync('.build/doomgeneric/doomgeneric/Makefile')) {
-  run('git', [
-    'clone',
-    'https://github.com/ozkl/doomgeneric.git',
-    '.build/doomgeneric',
-  ]);
-  run('git', ['checkout', doomRev], resolve('.build/doomgeneric'));
-}
-const actual = existsSync('.build/doomgeneric/.git')
-  ? spawnSync('git', ['rev-parse', 'HEAD'], {
-      cwd: '.build/doomgeneric',
-      encoding: 'utf8',
-    }).stdout.trim()
-  : read('.build/doomgeneric/REVISION', 'utf8').trim();
-if (actual !== doomRev) throw Error('Unexpected doomgeneric revision');
-write('.build/doomgeneric/REVISION', doomRev + '\n');
-if (!existsSync('.build/freedoom.zip'))
-  run('curl', [
-    '-fL',
-    'https://github.com/freedoom/freedoom/releases/download/v0.13.0/freedoom-0.13.0.zip',
-    '-o',
-    '.build/freedoom.zip',
-  ]);
-if (
-  createHash('sha256').update(read('.build/freedoom.zip')).digest('hex') !==
-  '3f9b264f3e3ce503b4fb7f6bdcb1f419d93c7b546f4df3e874dd878db9688f59'
-)
-  throw Error('Freedoom checksum mismatch');
-run('unzip', [
-  '-oq',
-  '.build/freedoom.zip',
-  'freedoom-0.13.0/freedoom1.wad',
-  'freedoom-0.13.0/COPYING.txt',
-  'freedoom-0.13.0/CREDITS.txt',
-  '-d',
-  '.build',
-]);
-copyFileSync('.build/freedoom-0.13.0/COPYING.txt', 'licenses/Freedoom.txt');
-copyFileSync(
-  '.build/freedoom-0.13.0/CREDITS.txt',
-  'licenses/Freedoom-CREDITS.txt',
-);
-copyFileSync('.build/doomgeneric/LICENSE', 'licenses/DOOM.txt');
-// Keep the first map and all visual assets. Drop audio, demos, and other maps.
-const original = read('.build/freedoom-0.13.0/freedoom1.wad');
-const lumps: Lump[] = [];
-let map = '';
-for (let i = 0; i < original.readInt32LE(4); i++) {
-  const p = original.readInt32LE(8) + i * 16;
-  const start = original.readInt32LE(p),
-    size = original.readInt32LE(p + 4),
-    name = original.toString('ascii', p + 8, p + 16).replace(/\0/g, '');
-  if (/^E\dM\d$/.test(name)) map = name;
-  else if (
-    ![
-      'THINGS',
-      'LINEDEFS',
-      'SIDEDEFS',
-      'VERTEXES',
-      'SEGS',
-      'SSECTORS',
-      'NODES',
-      'SECTORS',
-      'REJECT',
-      'BLOCKMAP',
-    ].includes(name)
-  )
-    map = '';
-  if ((map && map !== 'E1M1') || /^(DS|DP|DEMO)/.test(name)) continue;
-  lumps.push({ name, data: original.subarray(start, start + size) });
-}
-function encodeWad(items: Lump[]) {
-  let offset = 12;
-  const dir = Buffer.alloc(items.length * 16);
-  items.forEach((l, i) => {
-    dir.writeInt32LE(offset, i * 16);
-    dir.writeInt32LE(l.data.length, i * 16 + 4);
-    dir.write(l.name, i * 16 + 8, 8, 'ascii');
-    offset += l.data.length;
-  });
-  const head = Buffer.alloc(12);
-  head.write('IWAD');
-  head.writeInt32LE(items.length, 4);
-  head.writeInt32LE(offset, 8);
-  return Buffer.concat([head, ...items.map((l) => l.data), dir]);
-}
-const conservative = encodeWad(lumps);
-const trimmed = trimVisuals(lumps);
-const game = encodeWad(trimmed.lumps);
+
+const { original, notices } = await prepareSources();
+
+const { conservative, game, trimStats } = buildWad(original);
+
 write('.build/doom1.wad', game);
-const make = read('.build/doomgeneric/doomgeneric/Makefile', 'utf8');
-const sources = make
-  .match(/SRC_DOOM = (.*)/)![1]
-  .trim()
-  .split(/\s+/)
-  .filter((x) => x !== 'doomgeneric_xlib.o')
-  .map((x) =>
-    resolve('.build/doomgeneric/doomgeneric', x.replace(/\.o$/, '.c')),
-  );
-// This one-map POC always restarts E1M1 after intermission or New Game.
-let gameSource = read('.build/doomgeneric/doomgeneric/g_game.c', 'utf8');
-for (const [from, to] of [
-  ['gamemap = wminfo.next+1;', 'gamemap = 1; gameepisode = 1;'],
-  ['gamemap = map;', 'gamemap = 1; gameepisode = 1;'],
-]) {
-  if (!gameSource.includes(from))
-    throw Error('Upstream map patch no longer applies');
-  gameSource = gameSource.replace(from, to);
+
+const runtime = await compileEngine();
+if (/\beval\s*\(|new Function\s*\(/.test(runtime)) {
+  throw new Error('Dynamic execution in generated runtime');
 }
-write('.build/g_game.c', gameSource);
-sources[sources.findIndex((s) => s.endsWith('/g_game.c'))] =
-  resolve('.build/g_game.c');
-const emcc =
-  process.env.EMCC || resolve('.build/emsdk/upstream/emscripten/emcc');
-run(emcc, [
-  ...sources,
-  resolve('src/platform.c'),
-  '-I' + resolve('.build/doomgeneric/doomgeneric'),
-  '-Oz',
-  '-flto',
-  '-DNORMALUNIX',
-  '-DLINUX',
-  '-D_DEFAULT_SOURCE',
-  '-DDOOMGENERIC_RESX=320',
-  '-DDOOMGENERIC_RESY=200',
-  '-sENVIRONMENT=web',
-  '-sDYNAMIC_EXECUTION=0',
-  '-sMODULARIZE=1',
-  '-sEXPORT_NAME=createDoom',
-  '-sFILESYSTEM=1',
-  '-sFORCE_FILESYSTEM=1',
-  '-sEXPORTED_RUNTIME_METHODS=["FS","callMain"]',
-  '-sEXPORTED_FUNCTIONS=["_main","_key_event","_player_x","_player_y"]',
-  '-sINVOKE_RUN=0',
-  '-sALLOW_MEMORY_GROWTH=1',
-  '-sINITIAL_MEMORY=33554432',
-  '-sASYNCIFY=1',
-  '-sASSERTIONS=0',
-  '-sEXIT_RUNTIME=0',
-  '-o',
-  resolve('.build/engine.js'),
-]);
-const runtime = read('.build/engine.js', 'utf8');
-if (/\beval\s*\(|new Function\s*\(/.test(runtime))
-  throw Error('Dynamic execution in generated runtime');
-const sizes: Record<string, unknown> = {
+
+const wasm = encodePayload(read('.build/engine.wasm'));
+const wad = encodePayload(game);
+
+const html = await renderGameHtml(runtime, wasm.encoded, wad.encoded, notices);
+write('dist/doom.html', html);
+
+const sizes = {
   originalWad: original.length,
   conservativeWad: {
     raw: conservative.length,
     gzip: gzipSync(conservative, { level: 9 }).length,
   },
-  trim: trimmed.stats,
+  trim: trimStats,
+  wasm: wasm.sizes,
+  wad: wad.sizes,
+  runtime: {
+    raw: Buffer.byteLength(runtime),
+    gzip: gzipSync(runtime, { level: 9 }).length,
+  },
+  finalHtml: Buffer.byteLength(html),
+  finalHtmlGzip: gzipSync(html, { level: 9 }).length,
+  sha256: createHash('sha256').update(html).digest('hex'),
 };
-function payload(name: string, bytes: Buffer) {
-  const gz = gzipSync(bytes, { level: 9 });
-  const b64 = gz.toString('base64');
-  sizes[name] = {
-    raw: bytes.length,
-    gzip: gz.length,
-    base64: Buffer.byteLength(b64),
-  };
-  return b64;
-}
-const wasm = payload('wasm', read('.build/engine.wasm')),
-  data = payload('wad', game);
-const notices = [
-  'DOOM engine (GPL-2.0-or-later), doomgeneric revision ' + doomRev,
-  read('licenses/DOOM.txt', 'utf8'),
-  read('licenses/Freedoom.txt', 'utf8'),
-  read('licenses/Freedoom-CREDITS.txt', 'utf8'),
-].join('\n\n');
-let html = read('src/shell.html', 'utf8')
-  .replace(
-    /<link rel="stylesheet" href="\/src\/doom\.css"\s*\/?>/,
-    () => '<style>' + read('src/doom.css', 'utf8').trim() + '</style>',
-  )
-  .replace('/*ENGINE*/', () => runtime)
-  .replace('__WASM__', wasm)
-  .replace('__WAD__', data)
-  .replace('__NOTICES__', () =>
-    notices.replace(/&/g, '&amp;').replace(/</g, '&lt;'),
-  );
-html = await minifyInlineScript(html, 'src/shell.html');
-write('dist/doom.html', html);
-sizes.runtime = {
-  raw: Buffer.byteLength(runtime),
-  gzip: gzipSync(runtime, { level: 9 }).length,
-};
-sizes.finalHtml = Buffer.byteLength(html);
-sizes.finalHtmlGzip = gzipSync(html, { level: 9 }).length;
-sizes.sha256 = createHash('sha256').update(html).digest('hex');
-write('dist/sizes.json', JSON.stringify(sizes, null, 2) + '\n');
-console.log(JSON.stringify(sizes, null, 2));
-const probe = await minifyInlineScript(
-  read('src/test.html', 'utf8'),
-  'src/test.html',
-);
-write('dist/test.html', probe);
 
-async function minifyInlineScript(html: string, source: string) {
-  const scriptPattern = /<script>([\s\S]*?)<\/script>/;
-  const script = html.match(scriptPattern)?.[1];
-  if (!script) throw new Error(`Missing inline script in ${source}`);
+const sizeReport = JSON.stringify(sizes, null, 2);
+write('dist/sizes.json', sizeReport + '\n');
+console.log(sizeReport);
 
-  const { code } = await minify(script, {
-    compress: true,
-    mangle: true,
-    format: { comments: false, inline_script: true },
-  });
-  if (!code) throw new Error(`Minification failed for ${source}`);
-  return html.replace(scriptPattern, () => `<script>${code}</script>`);
-}
-
-run('tar', [
+await run('tar', [
   '-czf',
   'dist/doom-source.tar.gz',
   '--exclude=.DS_Store',

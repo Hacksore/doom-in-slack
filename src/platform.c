@@ -2,15 +2,6 @@
 #include <stdint.h>
 
 #include "doomgeneric.h"
-#include "doomstat.h"
-
-EMSCRIPTEN_KEEPALIVE int player_x(void) {
-    return players[consoleplayer].mo ? players[consoleplayer].mo->x : 0;
-}
-
-EMSCRIPTEN_KEEPALIVE int player_y(void) {
-    return players[consoleplayer].mo ? players[consoleplayer].mo->y : 0;
-}
 
 static unsigned short queue[256];
 static unsigned int readpos;
