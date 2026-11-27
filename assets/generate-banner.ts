@@ -5,22 +5,10 @@ import { join } from "node:path";
 import { execa } from "execa";
 
 const output = join(import.meta.dirname, "play-doom-in-slack.gif");
+// Keep the banner at 50 fps; change the pulse duration to adjust its speed.
 const framesPerSecond = 50;
-const bounceSeconds = 1.44 / 2.5;
-// Five bounces take exactly 144 frames at 50 fps, keeping the loop seamless.
-const bouncesPerLoop = 5;
-const frameCount = Math.round(bounceSeconds * bouncesPerLoop * framesPerSecond);
-const arrow = [
-  [33, 50],
-  [62, 79],
-  [91, 50],
-  [82, 41],
-  [69, 54],
-  [69, 21],
-  [55, 21],
-  [55, 54],
-  [42, 41],
-] as const;
+const pulseSeconds = 0.8;
+const frameCount = Math.round(pulseSeconds * framesPerSecond);
 
 const macFont = "/System/Library/Fonts/Supplemental/Arial Bold.ttf";
 const font = existsSync(macFont) ? macFont : "DejaVu-Sans-Bold";
@@ -30,19 +18,19 @@ try {
   const frames: string[] = [];
 
   for (let index = 0; index < frameCount; index++) {
-    const phase = (index * bouncesPerLoop * 2 * Math.PI) / frameCount;
-    const offset = 5 * (1 - Math.cos(phase));
-    const points = arrow.map(([x, y]) => `${x},${y + 15 + offset}`).join(" ");
+    const phase = (index * 2 * Math.PI) / frameCount;
+    const scale = 1.05 - 0.15 * Math.cos(phase);
     const frame = join(work, `${index}.png`);
 
     await execa("magick", [
       "-size",
       "410x144",
-      "xc:#201c1b",
-      "-fill",
-      "#ff784b",
+      "xc:#000000",
       "-draw",
-      `polygon ${points}`,
+      `translate 62,72 scale ${scale},${scale}
+       fill '#db4f30' roundrectangle -24,-24 24,24 10,10
+       fill none stroke white stroke-width 3 stroke-linecap round stroke-linejoin round
+       path 'M -9,-5 L -14,0 L -9,5 M 3,-8 L -3,8 M 9,-5 L 14,0 L 9,5'`,
       "-fill",
       "#fff1dd",
       "-font",
@@ -51,7 +39,7 @@ try {
       "23",
       "-annotate",
       "+108+55",
-      "Click to",
+      "Open doom.html to",
       "-pointsize",
       "46",
       "-annotate",
